@@ -1,0 +1,130 @@
+---
+title: My dynamic report
+output: html_fragment
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, error=FALSE)
+library(tidyverse)
+```
+
+```{r }
+#reading in data
+logged_data <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vQonehw-5FyAUDxlGEsJKwdL1GNbTWX1pE2qTy_yyq_56XkjS7wmjiojyqhqeVLdgPjUKuLwG3E6tqd/pub?gid=337921844&single=true&output=csv")
+
+
+latest_data <- logged_data %>% #renaming variables
+  rename(walk_date = 2, 
+         time_of_day = 3,
+         weather = 4,
+         kingfisher = 5,
+         spotted_dove = 6,
+         pukeko = 7, 
+         seagull = 8, 
+         silvereye = 9) %>%
+  select(-Timestamp, -weather) #and dropping useless variables
+
+#ordering data in chronological order, to make life easier
+latest_data_ordered <- latest_data[order(as.Date(latest_data$walk_date, 
+                                                 format="%d/%m/%Y")),]
+
+
+
+```
+
+## Birds sightings across twice daily walks:
+
+I go on walks twice daily on a set route in my neigbourhood, once in the morning and once in the afternoon. I decided to log how many sightings I made of five different species of bird along my walks along with the weather. 
+
+The first thing we'll look at is the mean number of birds, by type, across AM (morning) and PM (afternoon) walks. We could use this data to, say, find the mean number of a certain bird species (seagulls, for instance) across morning walks). I will also create a bar chart, comparing the means for each bird species across both times. 
+
+```{r, echo=FALSE}
+
+bird_means = latest_data_ordered %>%  
+  group_by(time_of_day) %>% 
+  summarise(across(where(is.numeric), ~ mean(.x)))
+
+paste("The  mean number of seagulls across morning walks is", round(bird_means[1,5],2))
+
+#means by bird type across all walks, split into AM vs VS
+#then pivoting means to make easier in ggplot
+pivot_data <- latest_data_ordered %>%  
+  group_by(time_of_day) %>% 
+  summarise(across(where(is.numeric), ~ mean(.x))) %>%
+  pivot_longer(cols = !time_of_day, 
+               names_to = "bird_type", 
+               values_to = "means")
+
+pivot_data %>%  ggplot() +   #plotting mean, split so we can see AM vs PM
+  geom_bar(aes(x = bird_type,
+               y = means,
+               fill = time_of_day,
+               color = time_of_day),
+           stat = "identity", 
+           position = position_dodge()) +
+  labs(x = "type of bird",
+       y = "mean daily number sighted",
+       title = "Mean number of birds sighted",
+       subtitle = "By bird type and time of day",
+       color = "AM vs PM",
+       fill = "AM vs PM")  +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_manual(values = c("sienna4", "chocolate")) +
+  scale_color_manual(values = c("sienna4", "chocolate"))  
+
+
+
+```
+\  
+\  
+
+
+At least in my data collection period, seagulls are a frequent sight compared to other bird types. \  
+
+
+The next way I'll look at this data is to tally up the total number of birds per walk. We can then compare the total number of birds sighted per day across morning and afternoon walks, as well as simply per day. We could also see the minimum and maximum counts for all bird species on a single walk.
+
+```{r, echo=FALSE}
+
+
+#summing across rows to create new variable, showing total birds per walk
+sum_across_data = latest_data_ordered %>% #sum across rows and create new var.
+  mutate(all_birds_total = rowSums(across(where(is.numeric)))) 
+
+paste(max(sum_across_data$all_birds_total), "is the largest total count of birds of all species sighted on a single walk.")
+
+paste(min(sum_across_data$all_birds_total), "is the smallest total count of birds of all species sighted on a single walk.")
+
+sum_across_data %>% #plot of daily totals (AM vs PM)
+  ggplot() +
+  geom_bar(aes(x = walk_date,
+               y = all_birds_total,
+               fill = time_of_day,
+               color = time_of_day),
+           stat = "identity",
+           position = position_dodge()) +
+  labs(x = "walk date",
+       y = "total birds sighted",
+       title = "Total birds sighted per day on walk",
+       subtitle = "By morning vs afternoon",
+       color = "AM or PM",
+       fill = "AM or PM")  +
+  theme(axis.text.x = element_text(angle = 90))  +
+  scale_fill_manual(values = c("rosybrown1", "lightsalmon"))  +
+  scale_color_manual(values = c("rosybrown1", "lightsalmon"))  
+
+
+#daily totals plot (AM + PM)
+
+sum_across_data %>%
+  ggplot(aes(x=walk_date, y=all_birds_total)) + 
+  geom_bar(stat = "identity", fill = "salmon") +
+  labs(x = "walk date",
+       y = "total birds sighted",
+       title = "Total birds sighted per day",
+       subtitle = "Daily total across both walks") +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+
+\  Based on the data I've collected so far, we can really see a difference between how many birds are sighted in the morning vs afternoon!
